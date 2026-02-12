@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════
+# .gitignore — FiFAR Fraud Detection
+# ═══════════════════════════════════════════════════════════
+
+# ── Dépendances ──
+node_modules/
+frontend/node_modules/
+
+# ── Build ──
+frontend/dist/
+*.tsbuildinfo
+
+# ── Environnement Python ──
+backend/venv/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/**/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# ── Données et modèles (trop volumineux pour Git) ──
+backend/data/raw/*.csv
+backend/data/processed/
+backend/data/models/*.joblib
+backend/data/models/*.pkl
+*.db
+
+# ── Environnement ──
+.env.local
+.env.production
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Gemini / Agent ──
+.gemini/
+.agent/
+
+# ── Logs ──
+*.log
+npm-debug.log*
