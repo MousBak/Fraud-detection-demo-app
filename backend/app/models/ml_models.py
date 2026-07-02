@@ -59,7 +59,7 @@ class FraudDetectionModel:
         self.feature_names: list[str] = []
         self.is_fitted = False
 
-    def _create_model(self):
+    def _create_model(self, y: Optional[pd.Series] = None):
         """Crée l'instance du modèle selon le type."""
         if self.model_type == "logistic_regression":
             return LogisticRegression(
@@ -77,6 +77,12 @@ class FraudDetectionModel:
                 n_jobs=-1,
             )
         elif self.model_type == "xgboost":
+            scale_pos_weight = 20.0
+            if y is not None:
+                n_legit = (y == 0).sum()
+                n_fraud = (y == 1).sum()
+                if n_fraud > 0:
+                    scale_pos_weight = float(n_legit / n_fraud)
             return XGBClassifier(
                 n_estimators=300,
                 max_depth=8,
@@ -84,7 +90,7 @@ class FraudDetectionModel:
                 subsample=0.8,
                 colsample_bytree=0.8,
                 random_state=settings.RANDOM_STATE,
-                scale_pos_weight=20,  # Ratio déséquilibre ~1:20
+                scale_pos_weight=scale_pos_weight,
                 eval_metric="aucpr",
                 use_label_encoder=False,
             )
@@ -92,7 +98,7 @@ class FraudDetectionModel:
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "FraudDetectionModel":
         """Entraîne le modèle sur les données."""
         self.feature_names = list(X.columns)
-        self.model = self._create_model()
+        self.model = self._create_model(y)
 
         # Normalisation pour LR
         if self.model_type == "logistic_regression":

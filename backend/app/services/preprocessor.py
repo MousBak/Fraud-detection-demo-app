@@ -19,20 +19,15 @@ class Preprocessor:
     Prétraitement des données BAF pour l'entraînement des modèles.
     """
 
-    # Colonnes catégorielles à encoder
-    CATEGORICAL_COLS = [
-        "payment_type", "employment_status", "housing_status",
-        "source", "device_os",
-    ]
-
     # Colonnes à ne pas utiliser comme features
-    DROP_COLS = ["fraud_bool", "month"]
+    DROP_COLS = ["fraud_bool"]
 
     # Colonne cible
     TARGET_COL = "fraud_bool"
 
     def __init__(self):
         self.label_encoders: dict[str, LabelEncoder] = {}
+        self.categorical_cols: list[str] = []
         self.feature_columns: list[str] = []
         self.is_fitted = False
 
@@ -57,12 +52,15 @@ class Preprocessor:
         cols_to_drop = [c for c in self.DROP_COLS if c in df.columns]
         df = df.drop(columns=cols_to_drop)
 
+        # Identifier les colonnes catégorielles dynamiquement (types object, category ou string)
+        self.categorical_cols = df.select_dtypes(include=["object", "category", "string"]).columns.tolist()
+        logger.info(f"Colonnes catégorielles identifiées pour encodage : {self.categorical_cols}")
+
         # Encoder les colonnes catégorielles
-        for col in self.CATEGORICAL_COLS:
-            if col in df.columns:
-                le = LabelEncoder()
-                df[col] = le.fit_transform(df[col].astype(str))
-                self.label_encoders[col] = le
+        for col in self.categorical_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            self.label_encoders[col] = le
 
         # Gérer les valeurs manquantes
         df = df.fillna(0)

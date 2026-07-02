@@ -23,8 +23,8 @@ async def get_overview():
 
 
 @router.get("/fairness")
-async def get_fairness_analysis(attribute: str = Query("foreign_request")):
-    """Analyse l'équité du modèle pour un attribut protégé."""
+async def get_fairness_analysis(attribute: str = Query("customer_age")):
+    """Analyse l'équité du modèle pour un attribut protégé sur le test set."""
     try:
         from app.services.data_loader import data_loader
         from app.services.fairness_analyzer import FairnessAnalyzer
@@ -42,22 +42,44 @@ async def get_fairness_analysis(attribute: str = Query("foreign_request")):
                 fraud_col = col
                 break
 
-        y_true = df[fraud_col].values
+        if not fraud_col:
+            raise HTTPException(status_code=400, detail="Colonne de fraude non trouvée")
 
         # Obtenir les prédictions
         preprocessor = Preprocessor()
         X, y = preprocessor.fit_transform(df)
 
+        # Split temporel matching trainer
+        if "month" in df.columns:
+            test_mask = df["month"] > 5
+            df_test = df[test_mask]
+            X_test = X[test_mask]
+            y_test = y[test_mask]
+        else:
+            df_test = df
+            X_test = X
+            y_test = y
+
         try:
             model = FraudDetectionModel("xgboost")
             model.load()
-            y_pred = model.predict(X)
+            y_pred = model.predict(X_test)
         except Exception:
+            # Fallback
             np.random.seed(42)
-            y_pred = (np.random.random(len(y_true)) > 0.5).astype(int)
+            y_pred = (np.random.random(len(y_test)) > 0.85).astype(int)
+
+        y_true_test = y_test.values
+
+        # Traiter l'attribut protégé
+        if attribute == "customer_age":
+            # Binning par décennie
+            protected_values = ((df_test["customer_age"] // 10) * 10).astype(int).astype(str) + "s"
+        else:
+            protected_values = df_test[attribute].astype(str).values
 
         analyzer = FairnessAnalyzer()
-        result = analyzer.analyze(y_true, y_pred, df[attribute].values, attribute)
+        result = analyzer.analyze(y_true_test, y_pred, protected_values, attribute)
         return result
 
     except HTTPException:

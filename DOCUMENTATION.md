@@ -295,60 +295,63 @@ Le backend expose **6 groupes d'endpoints** (points d'entrée) :
 
 ## 5. Les données et le dataset
 
-### 5.1 Le dataset BAF (Bank Account Fraud)
+### 5.1 Le dataset BAF (Bank Account Fraud) / FiFAR
 
-Le dataset contient environ **1 million de transactions bancaires** avec :
+L'application utilise désormais le **jeu de données réel FiFAR (Financial Fraud Alert Review)** de Feedzai. Ce jeu de données comprend 30 622 cas d'alertes de fraude à l'ouverture de comptes bancaires avec :
 
-**Features financières :**
-- `income` : revenu annuel du client
+**Features financières & personnelles :**
+- `income` : revenu annuel du client (valeurs catégorielles normalisées)
 - `credit_risk_score` : score de risque de crédit
-- `velocity_24h` / `velocity_6h` : nombre de transactions dans les dernières 24h / 6h
+- `customer_age` : tranche d'âge du demandeur (ex: 20s, 30s)
+- `employment_status` : statut professionnel (ex: CA, CB...)
 
-**Features comportementales :**
-- `foreign_request` : la transaction vient-elle d'un pays étranger ?
-- `email_is_free` : l'email est-il un service gratuit (Gmail, Yahoo, etc.) ?
-- `device_fraud_count` : combien de fraudes ont déjà été signalées depuis cet appareil ?
+**Features comportementales et de transaction :**
+- `keep_alive_session` : comportement de la session (booléen)
+- `velocity_24h` / `velocity_6h` : nombre de transactions dans les dernières 24h / 6h
+- `device_fraud_count` : historique de fraude associé à l'appareil
 
 **Features temporelles :**
-- `customer_age` : ancienneté du compte client
-- `days_since_request` : jours depuis la dernière demande
-- `month` : mois de la transaction (utilisé pour l'évaluation temporelle)
+- `month` : mois de la transaction (de 0 à 7, utilisé pour la scission temporelle)
 
-**Prédictions des experts :**
-- `expert_0` à `expert_49` : la prédiction de chacun des 50 experts (0 = légitime, 1 = fraude)
+**Prédictions réelles des experts :**
+- `standard#0` à `standard#49` : la décision réelle de chacun des 50 experts simulés avec des profils d'expertise réalistes (0 = légitime, 1 = fraude)
 
-### 5.2 Pourquoi ces données sont intéressantes
+### 5.2 Propriétés du dataset réel
 
-1. **Déséquilibre réaliste** : seulement ~5% de fraudes (comme dans la réalité)
-2. **Dépendance temporelle** : les patterns changent au fil des mois
-3. **Experts imparfaits** : chaque expert a une précision différente et des biais
-4. **Données riches** : 30+ caractéristiques pour chaque transaction
+1. **Déséquilibre réel** : le dataset d'alertes contient un taux de fraude d'environ **12.1%**.
+2. **Scission temporelle (Temporal Split)** : scindé rigoureusement en mois d'apprentissage (`month <= 5`, ~20 765 cas) et de test (`month > 5`, ~9 857 cas) pour éviter la fuite de données temporelle.
+3. **Experts réels** : chaque expert possède des profils d'erreur, des zones de spécialité (par montant, par canal) et une charge de travail réaliste issus de l'étude FiFAR de Feedzai.
 
 ---
 
 ## 6. Les modèles de Machine Learning
 
-### 6.1 Comment fonctionne l'entraînement
+### 6.1 Comment fonctionne l'entraînement réel
 
 L'entraînement d'un modèle suit ces étapes :
 
 ```
-Données (1M transactions)
+Données FiFAR réelles
        │
        ▼
-Prétraitement (nettoyage, normalisation)
+Division temporelle :
+- Apprentissage : mois <= 5 (~20 765 lignes)
+- Test/Évaluation : mois > 5 (~9 857 lignes)
        │
        ▼
-Division : 80% entraînement / 20% test
+Prétraitement :
+- Encodage des colonnes catégorielles
+- StandardScaler sur les variables continues (pour Régression Logistique)
+- Calcul de scale_pos_weight pour XGBoost (gestion du déséquilibre de classe ~1:8)
        │
        ▼
-Entraînement (le modèle "apprend" sur les 80%)
+Entraînement des modèles sur les mois d'apprentissage
        │
        ▼
-Évaluation (le modèle est testé sur les 20% restants)
+Évaluation sur le test set (mois > 5)
        │
        ▼
-Métriques (accuracy, precision, recall, AUC-ROC)
+Envoi des métriques réelles (accuracy, precision, recall, AUC-ROC, AUC-PR) au Dashboard
 ```
 
 ### 6.2 Comprendre les métriques
@@ -375,34 +378,34 @@ Imaginons que sur 1 000 transactions, il y a 50 fraudes et 950 légitimes :
 
 ### 7.1 Principe
 
-Le L2D est le **cœur innovant** du projet. Au lieu de forcer l'IA à tout décider, on lui permet de dire "je ne suis pas sûr" :
+Le L2D est le **cœur innovant** du projet. Au lieu de forcer l'IA à tout décider, on lui permet de déléguer la décision :
 
 ```
 Score de confiance de l'IA :
 
-0%              30%              70%              100%
-|───────────────|────────────────|────────────────|
-   ✅ Confiance     👤 Zone          🚫 Confiance
-   "C'est OK"       d'incertitude    "C'est une fraude"
-                     → Expert humain
+0%              Seuil Bas (ex: 30%)      Seuil Haut (ex: 70%)      100%
+|───────────────────────|─────────────────────────|───────────────────|
+     ✅ Auto-Approuvé            👤 Zone de Déférence        🚫 Auto-Bloqué
+    (légitime sans expert)       → Expert humain           (fraude sans expert)
 ```
 
-### 7.2 Le choix de l'expert
+### 7.2 Évaluation par Coût et Décision
 
-Quand l'IA défère, le système choisit le meilleur expert disponible en considérant :
-1. **Sa précision** : un expert à 95% est préféré à un expert à 70%
-2. **Sa charge** : un expert déjà surchargé ne sera pas choisi
-3. **Sa spécialité** : un expert en "fraude internationale" sera choisi pour une transaction depuis le Nigeria
+En plus de la performance pure (Rappel), le système est évalué selon un **Coût Total Réel de Fraude** :
+- **Coût d'un faux positif (FP)** = 100 $ (coût opérationnel ou friction client)
+- **Coût d'un faux négatif (FN)** = 5 000 $ (perte financière directe due à la fraude)
 
-### 7.3 Pourquoi c'est important
+Dans la stratégie de déférence par coût (`cost_sensitive`), le coût attendu de la décision du modèle ML est modélisé :
+- Si le modèle ML prédit une fraude : `Coût attendu = (1 - Score ML) * 100` (risque de faux positif)
+- Si le modèle ML prédit légitime : `Coût attendu = Score ML * 5 000` (risque de faux négatif)
 
-Sans L2D :
-- L'IA décide tout → beaucoup d'erreurs dans la zone d'incertitude (30-70%)
+Si ce coût attendu dépasse le coût moyen d'intervention humaine ou si l'incertitude est trop grande, la décision est déléguée à l'expert humain.
 
-Avec L2D :
-- L'IA décide quand elle est confiante → très peu d'erreurs
-- Les cas incertains sont envoyés aux experts → meilleure précision globale
-- **Résultat** : le système combiné (IA + experts) est meilleur que l'IA seule ou les experts seuls
+### 7.3 Les stratégies de déférence implémentées
+- **Confidence** (Confiance de l'IA) : Délègue lorsque le score se trouve dans la zone d'incertitude entre le seuil bas et haut.
+- **Consensus** (Désaccord) : Délègue lorsque le niveau de désaccord entre les experts ou avec l'IA dépasse un seuil.
+- **Cost Sensitive** : Optimise le coût total en comparant le coût d'erreur attendu du modèle ML avec le coût d'examen humain.
+- **Random** (Aléatoire) : Sert de baseline en déléguant de manière purement aléatoire selon la capacité disponible.
 
 ---
 
@@ -410,70 +413,59 @@ Avec L2D :
 
 ### 8.1 Pourquoi c'est crucial
 
-Un système d'IA peut involontairement discriminer certains groupes. Par exemple :
-- Bloquer plus de transactions pour les jeunes (18-25 ans)
-- Déférer plus souvent les transactions des clients à faible revenu
+Un système d'IA peut involontairement discriminer certains groupes de population. Par exemple :
+- Bloquer plus de transactions pour les jeunes
+- Déléguer ou rejeter de manière disproportionnée les demandes selon le statut d'emploi
 
-### 8.2 Les métriques surveillées
+### 8.2 Les métriques surveillées sur le jeu de test
 
 | Métrique | Formule simplifiée | Objectif |
 |----------|-------------------|----------|
-| **Parité démographique** | Taux d'approbation du groupe A ≈ Taux du groupe B | Les groupes sont traités de façon égale |
-| **Odds équalisés** | FPR du groupe A ≈ FPR du groupe B | Le taux d'erreur est le même pour tous |
-| **Score de disparité** | 0 (parfait) à 1 (discriminatoire) | Score global de la "justice" du système |
+| **Parité démographique** | Taux d'auto-approbation du groupe A ≈ Taux du groupe B | Le système prend des décisions automatiques de manière équitable |
+| **Odds équalisés** | FPR du groupe A ≈ FPR du groupe B et TPR du groupe A ≈ TPR du groupe B | La précision et le taux d'erreur sont homogènes entre les groupes |
+| **Taux de déférence** | Taux de délégation du groupe A ≈ Taux du groupe B | Les experts sont sollicités de manière juste sans sur-sélectionner un groupe |
 
-### 8.3 Les groupes analysés
-
-- **Tranche d'âge** : 18-25, 26-35, 36-50, 51-65, 65+
-- **Type d'emploi** : employé, indépendant, retraité, étudiant, sans emploi
-- **Source de revenu** : salaire, investissements, aide sociale, entreprise
+### 8.3 Les groupes analysés réels
+- **Tranches d'âge** (`customer_age` binné par décennie : `20s`, `30s`, `40s`, etc.)
+- **Statut d'emploi** (`employment_status` contenant les catégories réelles codées du dataset)
 
 ---
 
-## 9. Guide d'installation détaillé
+## 9. Guide d'installation et déploiement détaillé
 
-### 9.1 Prérequis
+### 9.1 Déploiement automatisé avec Docker (Recommandé)
 
-| Outil | Version minimale | Vérification | Téléchargement |
-|-------|-----------------|--------------|----------------|
-| Node.js | 18+ | `node --version` | [nodejs.org](https://nodejs.org/) |
-| npm | 9+ | `npm --version` | Inclus avec Node.js |
-| Python | 3.10+ | `python3 --version` | [python.org](https://python.org/) |
-| Git | 2+ | `git --version` | [git-scm.com](https://git-scm.com/) |
-
-### 9.2 Installation pas à pas
+Le projet intègre un conteneur backend configuré pour installer toutes les dépendances machine learning, y compris `pyarrow` pour le support des fichiers Parquet, et télécharger automatiquement le dataset FiFAR réel si celui-ci est manquant.
 
 ```bash
-# 1. Cloner le projet (ou le télécharger en ZIP)
-git clone <url-du-repo>
-cd fraud-detection-demo-app
+# Lancer les services (backend FastAPI + frontend React)
+docker-compose up --build
+```
+Le frontend est accessible sur **http://localhost:5173** et le backend sur **http://localhost:8000**.
 
-# 2. Installer le frontend
-cd frontend
-npm install          # Télécharge toutes les librairies (peut prendre 1-2 minutes)
-cd ..
+### 9.2 Installation manuelle locale
 
-# 3. Installer le backend (optionnel)
+#### Prérequis
+* **Node.js** (v18+)
+* **Python** (v3.10+)
+* **Dataset FiFAR** : Télécharger l'archive depuis [Figshare](https://figshare.com/articles/dataset/Financial_Fraud_Alert_Review_Dataset/28351172) (ID `28351172`). Décompresser le fichier ZIP pour copier les fichiers :
+  - `backend/data/raw/alert_data/processed_data/alerts.parquet`
+  - `backend/data/raw/synthetic_experts/expert_predictions.parquet`
+
+#### Installation et lancement du Backend
+```bash
 cd backend
-python3 -m venv venv               # Crée un environnement isolé
-source venv/bin/activate            # Active l'environnement (Mac/Linux)
-pip install -r requirements.txt     # Installe les librairies Python
-cd ..
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
-### 9.3 Lancement
-
+#### Installation et lancement du Frontend
 ```bash
-# Terminal 1 — Frontend
 cd frontend
+npm install
 npm run dev
-# → Ouvrir http://localhost:5173 dans le navigateur
-
-# Terminal 2 — Backend (optionnel)
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-# → Documentation API : http://localhost:8000/docs
 ```
 
 ---

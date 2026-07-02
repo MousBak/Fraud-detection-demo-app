@@ -103,6 +103,55 @@ export default function App() {
     }
   };
 
+  if (dashboard.chargement) {
+    return (
+      <div className="loading-screen" style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#090d16', color: '#e2e8f0', fontFamily: 'system-ui'
+      }}>
+        <div className="spinner" style={{
+          width: '50px', height: '50px', border: '4px solid #1e293b', borderTopColor: '#06b6d4',
+          borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '20px'
+        }} />
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        <h3>Connexion au backend FiFAR et chargement des données réelles...</h3>
+        <p style={{ color: '#64748b', fontSize: '14px', marginTop: '10px' }}>Chargement d'alerts.parquet et expert_predictions.parquet</p>
+      </div>
+    );
+  }
+
+  if (dashboard.erreur) {
+    return (
+      <div className="error-screen" style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#090d16', color: '#f87171', padding: '20px', fontFamily: 'system-ui',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '50px', marginBottom: '20px' }}>⚠️</div>
+        <h2 style={{ color: '#e2e8f0', marginBottom: '15px' }}>Fichiers de données réels du FiFAR manquants</h2>
+        <p style={{ color: '#94a3b8', maxWidth: '600px', lineHeight: '1.6', marginBottom: '25px' }}>
+          {dashboard.erreur}
+        </p>
+        <div style={{
+          background: '#1e293b', color: '#e2e8f0', padding: '15px 20px', borderRadius: '8px',
+          textAlign: 'left', fontSize: '13px', fontFamily: 'monospace', width: '100%', maxWidth: '600px',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+        }}>
+          <div><strong>Emplacement attendu pour les données :</strong></div>
+          <div style={{ color: '#38bdf8', marginTop: '8px' }}>backend/data/raw/alert_data/processed_data/alerts.parquet</div>
+          <div style={{ color: '#38bdf8', marginTop: '4px' }}>backend/data/raw/synthetic_experts/expert_predictions.parquet</div>
+        </div>
+        <button onClick={() => window.location.reload()} style={{
+          marginTop: '30px', padding: '10px 20px', background: '#06b6d4', color: '#090d16',
+          border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer',
+          transition: 'opacity 0.2s'
+        }} onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'} onMouseOut={(e) => e.currentTarget.style.opacity = '1'}>
+          Réessayer le chargement
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="app-layout">
       {/* Barre latérale de navigation */}

@@ -39,17 +39,29 @@ class ModelTrainer:
         y: pd.Series,
         test_size: float = 0.2,
     ):
-        """Prépare les données train/test."""
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y,
-            test_size=test_size,
-            random_state=settings.RANDOM_STATE,
-            stratify=y,
-        )
+        """Prépare les données train/test par split temporel sur 'month'."""
+        if "month" in X.columns:
+            train_mask = X["month"] <= 5
+            test_mask = X["month"] > 5
+            
+            self.X_train = X[train_mask]
+            self.y_train = y[train_mask]
+            self.X_test = X[test_mask]
+            self.y_test = y[test_mask]
+        else:
+            # Fallback en cas d'absence de la colonne 'month'
+            self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
+                X, y,
+                test_size=test_size,
+                random_state=settings.RANDOM_STATE,
+                stratify=y,
+            )
+            
         logger.info(
-            f"Données préparées : {len(self.X_train)} train, "
-            f"{len(self.X_test)} test, "
-            f"taux de fraude : {y.mean():.3%}"
+            f"Données préparées (Split temporel) : {len(self.X_train)} train (mois <= 5), "
+            f"{len(self.X_test)} test (mois > 5), "
+            f"taux de fraude train : {self.y_train.mean():.3%}, "
+            f"taux de fraude test : {self.y_test.mean():.3%}"
         )
 
     def train_all_models(self) -> dict[str, ModelResult]:

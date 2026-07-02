@@ -91,31 +91,43 @@ export default function ModelTraining() {
         setResultats([]);
 
         try {
-            // Simuler l'appel API backend (/api/v1/models/train)
-            // En production, remplacer par un vrai appel fetch
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Résultats simulés basés sur les benchmarks FiFAR
-            const resultatsSimules: TrainingResult[] = modelsSelectionnes.map(m => {
-                const base = {
-                    logistic_regression: { acc: 0.921, prec: 0.452, rec: 0.724, f1: 0.557, auc: 0.961, temps: '3.2s' },
-                    random_forest: { acc: 0.963, prec: 0.651, rec: 0.803, f1: 0.719, auc: 0.982, temps: '18.7s' },
-                    xgboost: { acc: 0.971, prec: 0.703, rec: 0.831, f1: 0.762, auc: 0.991, temps: '25.4s' },
-                }[m.type] || { acc: 0.9, prec: 0.5, rec: 0.7, f1: 0.6, auc: 0.95, temps: '5.0s' };
-
-                return {
-                    modelType: m.type,
-                    accuracy: base.acc + (Math.random() - 0.5) * 0.01,
-                    precision: base.prec + (Math.random() - 0.5) * 0.02,
-                    recall: base.rec + (Math.random() - 0.5) * 0.02,
-                    f1: base.f1 + (Math.random() - 0.5) * 0.02,
-                    aucRoc: base.auc + (Math.random() - 0.5) * 0.005,
-                    trainingTime: base.temps,
-                    status: 'success' as const,
-                };
+            const response = await fetch('http://localhost:8000/api/v1/models/train', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model_types: modelsSelectionnes.map(m => m.type),
+                    test_size: 0.2,
+                    use_feature_engineering: true,
+                }),
             });
 
-            setResultats(resultatsSimules);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || "Erreur lors de l'entraînement.");
+            }
+
+            const data = await response.json();
+
+            // Mapper les résultats réels du backend
+            const resultatsReels = Object.entries(data.results).map(([type, res]: [string, any]) => ({
+                modelType: type,
+                accuracy: res.accuracy,
+                precision: res.precision,
+                recall: res.recall,
+                f1: res.f1,
+                aucRoc: res.auc_roc,
+                trainingTime: res.training_time,
+                status: 'success' as const,
+            }));
+
+            setResultats(resultatsReels);
+
+            // Recharger la page après 2 secondes pour actualiser le dashboard
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
         } catch (e) {
             setErreur(`Erreur d'entraînement : ${e instanceof Error ? e.message : 'Erreur inconnue'}`);
         } finally {

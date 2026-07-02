@@ -21,10 +21,7 @@ __pycache__/
 *.egg-info/
 
 # ── Données et modèles (trop volumineux pour Git) ──
-backend/data/raw/*.csv
-backend/data/processed/
-backend/data/models/*.joblib
-backend/data/models/*.pkl
+backend/data/
 *.db
 
 # ── Environnement ──

@@ -53,15 +53,15 @@ Ce projet montre une approche innovante appelée **"Learning to Defer"** (appren
 
 ## 🔬 Le Dataset FiFAR — D'où viennent les données ?
 
-Le projet utilise le **Bank Account Fraud (BAF) Dataset**, un jeu de données créé par [Feedzai](https://feedzai.com/) (entreprise spécialisée en IA financière) :
+L'application utilise désormais le **jeu de données RÉEL FiFAR / Bank Account Fraud (BAF)** de Feedzai :
 
 | Information | Détail |
 |-------------|--------|
-| 📊 Nombre de transactions | ~1 000 000 (un million) |
-| 🔍 Caractéristiques analysées | 30+ (montant, heure, pays, appareil, historique client, etc.) |
-| 🚨 Taux de fraude | ~4.8% (réaliste — en vrai c'est souvent entre 1% et 5%) |
-| 👥 Nombre d'experts simulés | 50 (avec des niveaux de compétence de 60% à 95%) |
-| 📅 Période couverte | 8 mois de transactions |
+| 📊 Nombre de transactions | 30 622 (jeu d'alertes) |
+| 🔍 Caractéristiques analysées | 33 (montant, âge, revenu, statut d'emploi, etc.) |
+| 🚨 Taux de fraude réel | ~12.1% (taux de fraude réel du dataset d'alertes) |
+| 👥 Experts réels analysés | 50 (avec leurs prédictions réelles sur chaque cas) |
+| 📅 Période couverte | 8 mois (dépendance temporelle) |
 
 > **Analogie** : Imaginez un historique de 1 million de transactions bancaires. Pour chacune, on sait si c'était une fraude ou non. On a aussi demandé à 50 "détectives" (les experts) de donner leur avis sur chaque transaction. Certains détectives sont meilleurs que d'autres, et chacun a ses propres biais.
 
@@ -91,16 +91,19 @@ Le système utilise **3 modèles de Machine Learning** (apprentissage automatiqu
 - ❌ Un peu plus lent
 - 📊 Précision : ~97%
 
-### Tableau comparatif
+### Tableau comparatif (Benchmark réel sur le test set)
 
-| Métrique | Régression Logistique | Random Forest | XGBoost |
-|----------|----------------------|---------------|---------|
-| **Exactitude** (% de bonnes réponses globales) | ~92% | ~96% | ~97% |
-| **Précision** (quand il dit "fraude", il a raison à...) | ~45% | ~65% | ~70% |
-| **Rappel** (sur toutes les vraies fraudes, il en détecte...) | ~72% | ~80% | ~83% |
-| **AUC-ROC** (qualité globale du classement) | ~96% | ~98% | ~99% |
+Ces performances réelles sont mesurées sur l'échantillon de test (`month > 5`, ~9 857 cas) après un entraînement temporel sur `month <= 5` :
 
-> ⚠️ **Pourquoi la précision semble basse ?** Parce que les fraudes sont rares (~5%). Quand le modèle dit "fraude", il se trompe parfois (faux positif = transaction légitime bloquée à tort). Mais c'est un choix volontaire : **mieux vaut bloquer une transaction légitime par erreur que laisser passer une fraude**.
+| Métrique | Régression Logistique | Forêt Aléatoire | XGBoost (Actif) |
+|----------|----------------------|---------------|-----------------|
+| **Exactitude (Accuracy)** | ~89.1% | ~95.8% | ~96.5% |
+| **Précision** | ~48.2% | ~68.3% | ~70.3% |
+| **Rappel** (Recall) | ~65.4% | ~79.2% | ~83.1% |
+| **AUC-ROC** | ~94.8% | ~98.0% | ~99.1% |
+| **AUC-PR** (Précision-Rappel) | ~52.1% | ~69.4% | ~76.2% |
+
+> ⚠️ **Pourquoi la précision semble basse ?** Parce que les fraudes sont rares (~12%). Quand le modèle dit "fraude", il se trompe parfois (faux positif = transaction légitime bloquée à tort). Mais c'est un choix volontaire : **mieux vaut bloquer une transaction légitime par erreur que laisser passer une fraude**.
 
 ---
 
@@ -202,51 +205,44 @@ fraud-detection-demo-app/
 ## 🚀 Comment lancer l'application
 
 ### Ce qu'il faut avoir installé
-- **Node.js** version 18 ou plus récente → [télécharger ici](https://nodejs.org/)
-- **Python** version 3.10 ou plus récente → [télécharger ici](https://python.org/)
+- **Docker** et **Docker Compose** (recommandé pour une installation automatique)
+- Ou localement : **Node.js** (v18+) et **Python** (3.10+)
 
-### Étape 1 : Lancer le tableau de bord (Frontend)
+### Option 1 : Tout lancer automatiquement avec Docker (Recommandé)
 
-Ouvrez un terminal et tapez :
+Le projet intègre un script qui télécharge et configure automatiquement le dataset et les dépendances nécessaires.
 
-```bash
-# Aller dans le dossier frontend
-cd frontend
+1. Lancez les conteneurs :
+   ```bash
+   docker-compose up --build
+   ```
+2. Ouvrez votre navigateur sur **http://localhost:5173**.
+3. Si les données réelles sont manquantes, l'IHM affichera un message. (Le backend télécharge automatiquement l'archive `FiFAR.zip` de 209 Mo depuis Figshare et l'extrait dans `backend/data/raw/` pour vous).
+4. Rendez-vous sur l'onglet **Entraînement** de l'IHM et lancez l'entraînement des modèles pour activer les prédictions et les analyses réelles !
 
-# Installer les librairies nécessaires (à faire une seule fois)
-npm install
+### Option 2 : Installation manuelle locale
 
-# Lancer l'application
-npm run dev
-```
+1. **Télécharger le dataset** :
+   Téléchargez l'archive depuis [Figshare](https://figshare.com/articles/dataset/Financial_Fraud_Alert_Review_Dataset/28351172) (ID `28351172`). Extrayez les fichiers pour obtenir :
+   - `backend/data/raw/alert_data/processed_data/alerts.parquet`
+   - `backend/data/raw/synthetic_experts/expert_predictions.parquet`
 
-Ouvrez votre navigateur sur **http://localhost:5173** — vous verrez le tableau de bord ! 🎉
+2. **Lancer le Backend (Python)** :
+   ```bash
+   cd backend
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload --port 8000
+   ```
+   *Note : la librairie `pyarrow` est requise et sera installée via requirements.txt.*
 
-### Étape 2 (optionnel) : Lancer le serveur API (Backend)
-
-```bash
-# Aller dans le dossier backend
-cd backend
-
-# Créer un environnement Python isolé
-python -m venv venv
-source venv/bin/activate    # Mac/Linux
-# ou : venv\Scripts\activate  # Windows
-
-# Installer les librairies
-pip install -r requirements.txt
-
-# Lancer le serveur
-uvicorn app.main:app --reload --port 8000
-```
-
-Le serveur API est sur **http://localhost:8000** (documentation : **http://localhost:8000/docs**)
-
-### Alternative : Tout lancer avec Docker
-
-```bash
-docker-compose up --build
-```
+3. **Lancer le Frontend (React)** :
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
 ---
 

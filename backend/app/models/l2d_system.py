@@ -30,6 +30,9 @@ class L2DResult:
     cost_expert: float
     cost_hybrid: float
     deferral_details: list[dict]
+    hybrid_recall: float = 0.0
+    ml_recall: float = 0.0
+    expert_recall: float = 0.0
 
 
 class L2DSystem:
@@ -66,7 +69,7 @@ class L2DSystem:
 
     def simulate(
         self,
-        strategy: Literal["confidence", "disagreement", "cost_sensitive"] = "confidence",
+        strategy: Literal["confidence", "disagreement", "cost_sensitive", "random"] = "confidence",
         threshold: float = 0.7,
         expert_capacity: float = 0.2,
         expert_selection: Literal["best", "average", "consensus"] = "consensus",
@@ -83,13 +86,13 @@ class L2DSystem:
         Returns:
             L2DResult avec les métriques hybrides.
         """
-        if self.ml_scores is None:
+        if self.ml_scores is None or self.y_true is None:
             raise RuntimeError("Le système n'est pas configuré. Appelez setup() d'abord.")
 
         n = len(self.ml_scores)
         max_expert_reviews = int(n * expert_capacity)
 
-        # Décisions experts
+        # Décisions experts : consensus par vote majoritaire
         expert_decisions = (self.expert_consensus > 0.5).astype(int)
 
         # Confiance du modèle
@@ -112,11 +115,14 @@ class L2DSystem:
             defer_scores = 1 - expert_agreement
         elif strategy == "cost_sensitive":
             cost_fp, cost_fn = 100, 5000
-            expected_cost = (
-                self.ml_scores * cost_fp * (1 - self.ml_scores) +
-                (1 - self.ml_scores) * cost_fn * self.ml_scores
-            )
+            ml_pred_fraude = self.ml_scores >= 0.5
+            expected_cost = np.where(ml_pred_fraude,
+                (1 - self.ml_scores) * cost_fp,   # risque de faux positif
+                self.ml_scores * cost_fn)          # risque de faux négatif
             defer_scores = expected_cost / expected_cost.max()
+        elif strategy == "random":
+            np.random.seed(42)
+            defer_scores = np.random.rand(n)
         else:
             raise ValueError(f"Stratégie inconnue : {strategy}")
 
@@ -135,18 +141,49 @@ class L2DSystem:
         ml_decisions = 0
         expert_reviews = 0
 
+        y_pred_hybrid = np.zeros(n, dtype=int)
         for i in range(n):
             if should_defer[i]:
                 expert_reviews += 1
+                y_pred_hybrid[i] = expert_decisions[i]
                 if expert_decisions[i] == self.y_true[i]:
                     hybrid_correct += 1
             else:
                 ml_decisions += 1
+                y_pred_hybrid[i] = self.ml_predictions[i]
                 if self.ml_predictions[i] == self.y_true[i]:
                     hybrid_correct += 1
 
         hybrid_accuracy = hybrid_correct / n
         synergy = hybrid_accuracy - max(ml_only_accuracy, expert_only_accuracy)
+
+        # ── Calculs des Coûts Réels (FP * 100 + FN * 5000) ──
+        cost_fp_unit, cost_fn_unit = 100, 5000
+        
+        # 1. Coût ML seul
+        fp_ml = int(((self.ml_predictions == 1) & (self.y_true == 0)).sum())
+        fn_ml = int(((self.ml_predictions == 0) & (self.y_true == 1)).sum())
+        cost_ml = fp_ml * cost_fp_unit + fn_ml * cost_fn_unit
+
+        # 2. Coût Expert seul
+        fp_exp = int(((expert_decisions == 1) & (self.y_true == 0)).sum())
+        fn_exp = int(((expert_decisions == 0) & (self.y_true == 1)).sum())
+        cost_expert = fp_exp * cost_fp_unit + fn_exp * cost_fn_unit
+
+        # 3. Coût Hybride L2D
+        fp_hybrid = int(((y_pred_hybrid == 1) & (self.y_true == 0)).sum())
+        fn_hybrid = int(((y_pred_hybrid == 0) & (self.y_true == 1)).sum())
+        cost_hybrid = fp_hybrid * cost_fp_unit + fn_hybrid * cost_fn_unit
+
+        # ── Calculs du Rappel Réel (TP / (TP + FN)) ──
+        tp_ml = int(((self.ml_predictions == 1) & (self.y_true == 1)).sum())
+        ml_recall = tp_ml / (tp_ml + fn_ml) if (tp_ml + fn_ml) > 0 else 0
+
+        tp_exp = int(((expert_decisions == 1) & (self.y_true == 1)).sum())
+        expert_recall = tp_exp / (tp_exp + fn_exp) if (tp_exp + fn_exp) > 0 else 0
+
+        tp_hybrid = int(((y_pred_hybrid == 1) & (self.y_true == 1)).sum())
+        hybrid_recall = tp_hybrid / (tp_hybrid + fn_hybrid) if (tp_hybrid + fn_hybrid) > 0 else 0
 
         # Détails par bin de confiance
         bins = np.linspace(0, 1, 11)
@@ -171,10 +208,13 @@ class L2DSystem:
             ml_only_accuracy=round(ml_only_accuracy, 4),
             expert_only_accuracy=round(expert_only_accuracy, 4),
             synergy=round(synergy, 4),
-            cost_ml=round(n * 0.5),
-            cost_expert=round(expert_reviews * settings.DEFERRAL_COST),
-            cost_hybrid=round(n * 0.5 + expert_reviews * settings.DEFERRAL_COST),
+            cost_ml=float(cost_ml),
+            cost_expert=float(cost_expert),
+            cost_hybrid=float(cost_hybrid),
             deferral_details=deferral_details,
+            hybrid_recall=round(hybrid_recall, 4),
+            ml_recall=round(ml_recall, 4),
+            expert_recall=round(expert_recall, 4),
         )
 
     def compare_strategies(
@@ -187,7 +227,7 @@ class L2DSystem:
             thresholds = [0.3, 0.5, 0.7, 0.9]
 
         results = []
-        for strategy in ["confidence", "disagreement", "cost_sensitive"]:
+        for strategy in ["confidence", "disagreement", "cost_sensitive", "random"]:
             for threshold in thresholds:
                 result = self.simulate(
                     strategy=strategy,
