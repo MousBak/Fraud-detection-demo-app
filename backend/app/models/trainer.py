@@ -143,8 +143,13 @@ class ModelTrainer:
 
     def get_comparison(self) -> list[dict]:
         """Retourne la comparaison de tous les modèles entraînés."""
-        return [
-            {
+        comparison = []
+        for result in self.results.values():
+            tn = result.confusion_matrix.get("tn", 0)
+            fp = result.confusion_matrix.get("fp", 0)
+            fpr = round(fp / (fp + tn), 4) if (fp + tn) > 0 else 0.0
+            
+            comparison.append({
                 "name": result.name,
                 "accuracy": result.accuracy,
                 "precision": result.precision,
@@ -152,7 +157,7 @@ class ModelTrainer:
                 "f1": result.f1,
                 "auc_roc": result.auc_roc,
                 "auc_pr": result.auc_pr,
+                "fpr": fpr,
                 "training_time": result.training_time,
-            }
-            for result in self.results.values()
-        ]
+            })
+        return comparison

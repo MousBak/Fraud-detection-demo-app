@@ -53,10 +53,17 @@ class ExpertEnsemble:
         available_cols = [c for c in expert_cols if c in predictions_df.columns]
         
         if not available_cols:
+            # Essayer avec le format standard#0 de FiFAR
+            expert_cols = [f"standard#{i}" for i in range(self.n_experts)]
+            available_cols = [c for c in expert_cols if c in predictions_df.columns]
+            
+        if not available_cols:
             # Essayer avec d'autres formats de colonnes
-            expert_cols = [c for c in predictions_df.columns if "expert" in c.lower()]
-            if not expert_cols:
-                raise ValueError("Aucune colonne d'expert trouvée dans le dataset")
+            expert_cols = [c for c in predictions_df.columns if "expert" in c.lower() or "standard" in c.lower()]
+            available_cols = expert_cols
+            
+        if not available_cols:
+            raise ValueError("Aucune colonne d'expert trouvée dans le dataset")
         
         self.expert_predictions = predictions_df[available_cols]
         self.n_experts = len(available_cols)

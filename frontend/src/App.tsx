@@ -34,7 +34,6 @@ export default function App() {
             metriquesPipeline={dashboard.metriquesPipeline}
             metriquesModele={dashboard.metriquesModele}
             distributionL2D={dashboard.distributionL2D}
-            typesFraude={dashboard.typesFraude}
             santeSysteme={dashboard.santeSysteme}
           />
         );

@@ -18,9 +18,27 @@ import type {
     L2DDecision,
     ChartDataPoint,
 } from '../types';
-import { DONNEES_INITIALES } from '../data/mockData';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
+
+const TOPICS_KAFKA_INITIAL: KafkaTopic[] = [
+    { name: 'baf.transactions.raw', partitions: 12, replicationFactor: 3, messagesPerSecond: 0, avgMessageSize: 512, consumerLag: 0, status: 'healthy' },
+    { name: 'baf.features.enriched', partitions: 12, replicationFactor: 3, messagesPerSecond: 0, avgMessageSize: 1024, consumerLag: 0, status: 'healthy' },
+    { name: 'baf.decisions.l2d', partitions: 12, replicationFactor: 3, messagesPerSecond: 0, avgMessageSize: 2048, consumerLag: 0, status: 'healthy' }
+];
+
+const SANTE_SYSTEME_INITIAL: SystemHealth = {
+    kafka: { name: 'Kafka Cluster', status: 'healthy', uptime: 99.9, latencyMs: 2, cpu: 15, memory: 42 },
+    feast: { name: 'Feast Feature Store', status: 'healthy', uptime: 99.8, latencyMs: 5, cpu: 22, memory: 58 },
+    elasticsearch: { name: 'Elasticsearch Index', status: 'healthy', uptime: 99.9, latencyMs: 8, cpu: 18, memory: 64 },
+    fastapi: { name: 'FastAPI Backend', status: 'healthy', uptime: 100.0, latencyMs: 12, cpu: 8, memory: 35 }
+};
+
+const DISTRIBUTION_L2D_INITIAL: ChartDataPoint[] = [
+    { name: 'Auto-approbation', value: 0, color: '#10b981' },
+    { name: 'Auto-blocage', value: 0, color: '#ef4444' },
+    { name: 'Déféré aux experts', value: 0, color: '#f59e0b' }
+];
 
 interface UseDashboardReturn {
     transactions: Transaction[];
@@ -34,7 +52,6 @@ interface UseDashboardReturn {
     santeSysteme: SystemHealth;
     decisionsL2D: L2DDecision[];
     distributionL2D: ChartDataPoint[];
-    typesFraude: ChartDataPoint[];
     comparaisonPerf: ChartDataPoint[];
 
     ongletActif: TabType;
@@ -78,18 +95,17 @@ export function useDashboard(): UseDashboardReturn {
     const [poolTransactions, setPoolTransactions] = useState<Transaction[]>([]);
     const [experts, setExperts] = useState<FraudExpert[]>([]);
     const [modeles, setModeles] = useState<MLModel[]>([]);
-    const [metriquesPipeline, setMetriquesPipeline] = useState<PipelineMetrics[]>(DONNEES_INITIALES.metriques);
-    const [metriquesModele, setMetriquesModele] = useState<ModelMetrics[]>(DONNEES_INITIALES.metriquesModele);
-    const [topicsKafka, setTopicsKafka] = useState<KafkaTopic[]>(DONNEES_INITIALES.topicsKafka);
+    const [metriquesPipeline, setMetriquesPipeline] = useState<PipelineMetrics[]>([]);
+    const [metriquesModele, setMetriquesModele] = useState<ModelMetrics[]>([]);
+    const [topicsKafka, setTopicsKafka] = useState<KafkaTopic[]>(TOPICS_KAFKA_INITIAL);
     const [alertes, setAlertes] = useState<Alert[]>([]);
     const [equite, setEquite] = useState<FairnessMetrics[]>([]);
-    const [santeSysteme, setSanteSysteme] = useState<SystemHealth>(DONNEES_INITIALES.santeSysteme);
+    const [santeSysteme, setSanteSysteme] = useState<SystemHealth>(SANTE_SYSTEME_INITIAL);
     const [decisionsL2D, setDecisionsL2D] = useState<L2DDecision[]>([]);
     
     // Graphiques
-    const [distributionL2D, setDistributionL2D] = useState<ChartDataPoint[]>(DONNEES_INITIALES.distributionL2D);
-    const [typesFraude, setTypesFraude] = useState<ChartDataPoint[]>(DONNEES_INITIALES.typesFraude);
-    const [comparaisonPerf, setComparaisonPerf] = useState<ChartDataPoint[]>(DONNEES_INITIALES.comparaisonPerformance);
+    const [distributionL2D, setDistributionL2D] = useState<ChartDataPoint[]>(DISTRIBUTION_L2D_INITIAL);
+    const [comparaisonPerf, setComparaisonPerf] = useState<ChartDataPoint[]>([]);
 
     // --- États de l'interface ---
     const [ongletActif, setOngletActif] = useState<TabType>('overview');
@@ -158,7 +174,7 @@ export function useDashboard(): UseDashboardReturn {
                     recall: m.recall,
                     f1Score: m.f1,
                     f2Score: m.f1, // approximation
-                    falsePositiveRate: 1 - m.precision, // estimation simple
+                    falsePositiveRate: m.fpr,
                     auc: m.auc_roc,
                     avgLatencyMs: m.name === 'xgboost' ? 12 : m.name === 'random_forest' ? 25 : 4,
                     status: m.name === 'xgboost' ? 'active' : m.name === 'random_forest' ? 'shadow' : 'canary',
@@ -364,7 +380,6 @@ export function useDashboard(): UseDashboardReturn {
         santeSysteme,
         decisionsL2D,
         distributionL2D,
-        typesFraude,
         comparaisonPerf,
 
         ongletActif,

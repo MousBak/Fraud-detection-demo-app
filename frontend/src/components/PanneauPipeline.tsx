@@ -40,6 +40,29 @@ export default function PanneauPipeline({ topicsKafka, metriquesPipeline, santeS
                 <p className="page-description">Monitoring des topics Kafka, latence, débit et état des services en temps réel</p>
             </div>
 
+            {/* Avertissement Architecture Cible */}
+            <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '20px',
+                color: '#fca5a5',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontFamily: 'system-ui'
+            }}>
+                <span style={{ fontSize: '24px' }}>⚠️</span>
+                <div>
+                    <h4 style={{ margin: 0, fontWeight: 'bold', color: '#f87171' }}>Architecture cible — Non implémentée dans cette démo</h4>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#cbd5e1' }}>
+                        Cette page représente l'infrastructure de production cible (Kafka stream, Feast Feature Store, Elasticsearch).
+                        Dans cet environnement local, les calculs sont effectués en direct par le backend FastAPI connecté au dataset réel.
+                    </p>
+                </div>
+            </div>
+
             {/* Topics Kafka */}
             <div className="chart-card">
                 <h3 className="chart-title"><Server size={18} /> Topics Kafka</h3>

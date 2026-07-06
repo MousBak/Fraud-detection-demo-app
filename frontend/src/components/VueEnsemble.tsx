@@ -49,7 +49,6 @@ interface VueEnsembleProps {
     metriquesPipeline: PipelineMetrics[];
     metriquesModele: ModelMetrics[];
     distributionL2D: ChartDataPoint[];
-    typesFraude: ChartDataPoint[];
     santeSysteme: SystemHealth;
 }
 
@@ -108,7 +107,6 @@ export default function VueEnsemble({
     metriquesPipeline,
     metriquesModele,
     distributionL2D,
-    typesFraude,
     santeSysteme,
 }: VueEnsembleProps) {
     // Préparer les données pour le graphique du débit
@@ -284,7 +282,7 @@ export default function VueEnsemble({
                 </div>
             </div>
 
-            <div className="charts-grid-3">
+            <div className="charts-grid-2">
                 {/* Graphique : Distribution des décisions L2D */}
                 <div className="chart-card">
                     <h3 className="chart-title">
@@ -311,29 +309,6 @@ export default function VueEnsemble({
                                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#e2e8f0' }}
                             />
                         </PieChart>
-                    </ResponsiveContainer>
-                </div>
-
-                {/* Graphique : Types de fraude */}
-                <div className="chart-card">
-                    <h3 className="chart-title">
-                        Types de Fraude Détectés
-                    </h3>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={typesFraude} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis type="number" stroke="#64748b" fontSize={11} />
-                            <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={10} width={150} />
-                            <Tooltip
-                                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#e2e8f0' }}
-                                formatter={(value: number) => `${value}%`}
-                            />
-                            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                                {typesFraude.map((entry, index) => (
-                                    <Cell key={index} fill={entry.color} />
-                                ))}
-                            </Bar>
-                        </BarChart>
                     </ResponsiveContainer>
                 </div>
 
