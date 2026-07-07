@@ -134,7 +134,7 @@ fraud-detection-demo-app/
 │       ├── index.css                   # Styles visuels (thème sombre, couleurs, etc.)
 │       ├── vite-env.d.ts              # Typage pour l'environnement Vite
 │       │
-│       ├── components/                 # Les 10 écrans de l'application
+│       ├── components/                 # Les 11 écrans de l'application
 │       │   ├── BarreLaterale.tsx       #   → Barre de navigation (menu à gauche)
 │       │   ├── VueEnsemble.tsx         #   → Écran 1 : Vue d'ensemble (KPIs)
 │       │   ├── TableTransactions.tsx   #   → Écran 2 : Table des transactions
@@ -145,7 +145,9 @@ fraud-detection-demo-app/
 │       │   ├── PanneauL2D.tsx          #   → Écran 7 : Simulation Learning to Defer
 │       │   ├── PanneauPipeline.tsx     #   → Écran 8 : Infrastructure et pipeline
 │       │   ├── PanneauAlertes.tsx      #   → Écran 9 : Alertes et notifications
-│       │   └── PanneauEquite.tsx       #   → Écran 10 : Analyse d'équité
+│       │   ├── PanneauEquite.tsx       #   → Écran 10 : Analyse d'équité
+│       │   └── PanneauValidation.tsx   #   → Écran 11 : Validation Temporelle (Fenêtre Glissante)
+
 │       │
 │       ├── hooks/                      # Logique réutilisable
 │       │   └── useDashboard.ts         #   → Gestion de l'état global + simulation temps réel
@@ -227,7 +229,8 @@ App.tsx ← Le chef d'orchestre
       ├── PanneauL2D.tsx          (si onglet = "l2d")
       ├── PanneauPipeline.tsx     (si onglet = "pipeline")
       ├── PanneauAlertes.tsx      (si onglet = "alerts")
-      └── PanneauEquite.tsx       (si onglet = "fairness")
+      ├── PanneauEquite.tsx       (si onglet = "fairness")
+      └── PanneauValidation.tsx   (si onglet = "validation")
 ```
 
 ### 3.2 Le hook useDashboard — Le cerveau du frontend
@@ -572,6 +575,66 @@ Body: { "amount": 2500, "merchant": "Amazon", "country": "France", "channel": "o
 POST /api/v1/l2d/simulate
 Body: { "transaction_id": "TXN-001", "strategy": "confidence" }
 → { "decision": "defer_to_expert", "expert_id": "EXP-003", "reason": "Score dans la zone d'incertitude" }
+```
+
+### 12.6 Nouveaux Endpoints Mémoire v7
+
+#### Calibration
+```
+GET /api/v1/models/calibration
+→ {
+    "uncalibrated": { "brier": 0.133, "uncertainty_count": 1955, "true_probabilities": [...], "pred_probabilities": [...] },
+    "calibrated": { "brier": 0.1196, "uncertainty_count": 404, "true_probabilities": [...], "pred_probabilities": [...] }
+  }
+```
+
+#### Performance à k%
+```
+GET /api/v1/models/precision-at-k/{model_type}
+→ {
+    "model_type": "xgboost",
+    "precision_recall_at_k": [
+      { "k_pct": 5.0, "precision": 0.3679, "recall": 0.1281, "count": 492 },
+      { "k_pct": 10.0, "precision": 0.2954, "recall": 0.2059, "count": 985 },
+      { "k_pct": 20.0, "precision": 0.2496, "recall": 0.3482, "count": 1971 }
+    ]
+  }
+```
+
+#### Validation par Fenêtre Glissante
+```
+GET /api/v1/models/rolling-validation
+→ {
+    "rolling_validation": [
+      { "fold": "Mois 3-4 → Mois 5", "recall": 0.1414, "auc_pr": 0.2688, "auc_roc": 0.785, "train_size": 12000, "test_size": 4000 },
+      ...
+    ]
+  }
+```
+
+#### Balayage de Capacité L2D (Sensibilité au Coût)
+```
+POST /api/v1/l2d/capacity-sweep
+Body: { "strategy": "cost_sensitive" }
+→ {
+    "sweep": [
+      { "cost_review": 0.0, "capacities": [0, 20, 40, 60, 80, 100], "costs": [...] },
+      { "cost_review": 200.0, "capacities": [0, 20, 40, 60, 80, 100], "costs": [...] },
+      { "cost_review": 500.0, "capacities": [0, 20, 40, 60, 80, 100], "costs": [...] }
+    ]
+  }
+```
+
+#### Comparaison des Modèles de Base L2D
+```
+GET /api/v1/l2d/base-comparison
+→ {
+    "base_comparison": [
+      { "model_name": "logistic_regression", "cost_hybrid": 1071495.2, "recall_hybrid": 0.9413, "ml_recall": 0.654, "expert_reviews": 1971 },
+      { "model_name": "random_forest", "cost_hybrid": 4264595.2, "recall_hybrid": 0.4225, "ml_recall": 0.792, "expert_reviews": 1971 },
+      { "model_name": "xgboost", "cost_hybrid": 4171495.2, "recall_hybrid": 0.4381, "ml_recall": 0.831, "expert_reviews": 1971 }
+    ]
+  }
 ```
 
 ---

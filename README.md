@@ -12,7 +12,7 @@ Ce projet est une **application web de démonstration** qui simule un système d
 
 ## 📸 Ce que vous verrez à l'écran
 
-Quand vous lancez l'application, vous accédez à un **tableau de bord interactif** (dark theme, design moderne) avec **10 écrans** accessibles via une barre de navigation à gauche :
+Quand vous lancez l'application, vous accédez à un **tableau de bord interactif** (dark theme, design moderne) avec **11 écrans** accessibles via une barre de navigation à gauche :
 
 | Écran | Ce qu'on y voit |
 |-------|----------------|
@@ -20,12 +20,13 @@ Quand vous lancez l'application, vous accédez à un **tableau de bord interacti
 | 💳 **Transactions** | La liste de toutes les transactions bancaires qui arrivent, avec le montant, le commerçant, le pays, et le score de risque donné par l'IA |
 | 🔍 **Exploration** | Des graphiques interactifs pour explorer les données : comment les fraudes se répartissent par montant, par canal de paiement, etc. |
 | ⚙️ **Entraînement** | Une interface pour "entraîner" les modèles d'IA — comme un professeur qui fait apprendre à l'IA à reconnaître les fraudes |
-| 🤖 **Modèles ML** | La comparaison des performances de 6 modèles d'intelligence artificielle différents |
+| 🤖 **Modèles ML** | La comparaison des performances de 6 modèles d'intelligence artificielle différents, avec analyse de calibration (Brier Score) et Precision@k |
 | 👥 **Experts** | Le profil de chacun des 50 experts humains : leur spécialité, leur précision, leur charge de travail |
-| 🔀 **Learning to Defer** | Comment le système décide : "Est-ce que l'IA peut répondre seule, ou faut-il demander à un humain ?" |
+| 🔀 **Learning to Defer** | Décisions hybrides, courbes de balayage de capacité (sensibilité au coût) et comparaison des modèles de base sous déférence |
 | 📡 **Pipeline** | L'état de santé de l'infrastructure technique (les "tuyaux" par lesquels passent les données) |
 | 🔔 **Alertes** | Les notifications importantes : pic de fraude, problème technique, IA qui perd en précision |
-| ⚖️ **Équité** | Est-ce que le système traite tout le monde de la même façon ? Analyse des biais potentiels |
+| ⚖️ **Équité** | Est-ce que le système traite tout le monde de la même façon ? Analyse des biais potentiels par tranche d'âge avec bootstrap et déférence |
+| 📅 **Validation Temp.** | Évaluation temporelle robuste par fenêtre glissante (splits mensuels successifs) sur le dataset FiFAR |
 
 ---
 
