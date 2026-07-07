@@ -104,3 +104,46 @@ class MetricsCalculator:
             "demographic_parity": round(dp_ratio, 4),
             "equalized_odds_fpr": round(eo_fpr, 4),
         }
+
+    @staticmethod
+    def compute_precision_recall_at_k(
+        y_true: np.ndarray,
+        y_proba: np.ndarray,
+        k_list: list[float] | None = None,
+    ) -> list[dict]:
+        """Calcule Precision@k et Recall@k pour différents pourcentages k."""
+        if k_list is None:
+            k_list = [5.0, 10.0, 20.0]
+            
+        n = len(y_true)
+        sorted_indices = np.argsort(y_proba)[::-1]
+        y_true_sorted = y_true[sorted_indices]
+        
+        total_frauds = y_true.sum()
+        results = []
+        
+        for k_pct in k_list:
+            k = int(n * (k_pct / 100.0))
+            if k == 0:
+                results.append({
+                    "k_pct": k_pct,
+                    "precision": 0.0,
+                    "recall": 0.0,
+                    "count": 0,
+                })
+                continue
+                
+            top_k_labels = y_true_sorted[:k]
+            frauds_in_top_k = top_k_labels.sum()
+            
+            precision = frauds_in_top_k / k
+            recall = frauds_in_top_k / total_frauds if total_frauds > 0 else 0.0
+            
+            results.append({
+                "k_pct": k_pct,
+                "precision": round(float(precision), 4),
+                "recall": round(float(recall), 4),
+                "count": int(k),
+            })
+            
+        return results

@@ -60,16 +60,41 @@ async def get_fairness_analysis(attribute: str = Query("customer_age")):
             X_test = X
             y_test = y
 
+        from app.models.expert_ensemble import ExpertEnsemble
+        from app.models.l2d_system import L2DSystem
+
         try:
             model = FraudDetectionModel("xgboost")
             model.load()
-            y_pred = model.predict(X_test)
+            ml_scores = model.predict_proba(X_test)
+            ml_predictions = model.predict(X_test)
         except Exception:
             # Fallback
             np.random.seed(42)
-            y_pred = (np.random.random(len(y_test)) > 0.85).astype(int)
+            ml_scores = np.clip(np.random.beta(2, 5, len(y_test)), 0.01, 0.99)
+            ml_scores[y_test.values == 1] = np.clip(ml_scores[y_test.values == 1] + 0.4, 0.01, 0.99)
+            ml_predictions = (ml_scores > 0.5).astype(int)
 
         y_true_test = y_test.values
+
+        # Obtenir les décisions des experts pour calculer la déférence
+        expert_preds = data_loader.expert_predictions
+        expert_preds_test = expert_preds.loc[df_test.index]
+        ensemble = ExpertEnsemble()
+        ensemble.load_predictions(expert_preds_test)
+        expert_consensus = ensemble.get_consensus()
+
+        l2d = L2DSystem()
+        l2d.setup(ml_scores, ml_predictions, expert_consensus, y_true_test, X_test=X_test)
+        
+        # Simuler stratégie coût à 20% capacité
+        l2d_res = l2d.simulate(
+            strategy="cost_sensitive",
+            expert_capacity=0.2,
+            cost_review=31.2,
+            force_capacity=True
+        )
+        should_defer = l2d_res.should_defer
 
         # Traiter l'attribut protégé
         if attribute == "customer_age":
@@ -79,7 +104,7 @@ async def get_fairness_analysis(attribute: str = Query("customer_age")):
             protected_values = df_test[attribute].astype(str).values
 
         analyzer = FairnessAnalyzer()
-        result = analyzer.analyze(y_true_test, y_pred, protected_values, attribute)
+        result = analyzer.analyze(y_true_test, ml_predictions, protected_values, attribute, should_defer=should_defer)
         return result
 
     except HTTPException:

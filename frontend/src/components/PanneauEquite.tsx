@@ -125,12 +125,49 @@ export default function PanneauEquite({ equite }: PanneauEquiteProps) {
                                             <td className={g.falsePositiveRate > 0.02 ? 'text-danger' : ''}>{(g.falsePositiveRate * 100).toFixed(2)}%</td>
                                             <td>{(g.falseNegativeRate * 100).toFixed(2)}%</td>
                                             <td>{(g.approvalRate * 100).toFixed(1)}%</td>
-                                            <td>{(g.deferralRate * 100).toFixed(0)}%</td>
+                                            <td>{(g.deferralRate * 100).toFixed(1)}%</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Intervalle de confiance Bootstrap pour le ratio FPR */}
+                        {metrique.bootstrap_ci && (
+                            <div style={{
+                                marginTop: '16px',
+                                background: '#090d16',
+                                border: '1px solid #1e293b',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                fontSize: '13px'
+                            }}>
+                                <span style={{ fontWeight: 600, color: '#e2e8f0' }}>Intervalle de confiance Bootstrap (95%) pour le ratio Min/Max FPR :</span>{' '}
+                                <span style={{ color: '#06b6d4', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                                    [{metrique.bootstrap_ci.ci_lower.toFixed(4)}, {metrique.bootstrap_ci.ci_upper.toFixed(4)}]
+                                </span>
+                                <span style={{ marginLeft: '12px', color: '#64748b' }}>
+                                    (Ratio moyen : {metrique.bootstrap_ci.ratio_mean.toFixed(4)}, basé sur 300 tirages bootstrap, excluant les effectifs &lt; 100)
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Piste d'atténuation recommandée */}
+                        {metrique.mitigation_strategy && (
+                            <div style={{
+                                marginTop: '16px',
+                                background: '#1e1b4b',
+                                border: '1px solid #312e81',
+                                borderRadius: '8px',
+                                padding: '16px',
+                                fontSize: '13px'
+                            }}>
+                                <h4 style={{ margin: '0 0 8px 0', color: '#818cf8', fontWeight: 600 }}>Piste d'atténuation recommandée</h4>
+                                <p style={{ margin: 0, color: '#a5b4fc', lineHeight: '1.5' }}>
+                                    {metrique.mitigation_strategy}
+                                </p>
+                            </div>
+                        )}
 
                         {/* Avertissement si disparité */}
                         {!estEquitable && (

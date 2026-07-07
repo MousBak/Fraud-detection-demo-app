@@ -17,6 +17,7 @@ import {
     Scale,             // Icône équité
     Shield,            // Icône bouclier (logo)
     Activity,          // Icône indicateur temps réel
+    Calendar,          // Icône calendrier pour validation temporelle
 } from 'lucide-react';
 import type { TabType } from '../types';
 
@@ -32,6 +33,7 @@ const ELEMENTS_NAV: { id: TabType; label: string; icone: React.ElementType; desc
     { id: 'pipeline', label: 'Pipeline', icone: Database, description: 'Infrastructure Kafka' },
     { id: 'alerts', label: 'Alertes', icone: Bell, description: 'Notifications système' },
     { id: 'fairness', label: 'Équité', icone: Scale, description: 'Biais et fairness' },
+    { id: 'validation', label: 'Validation Temp.', icone: Calendar, description: 'Évaluation par fenêtre glissante' },
 ];
 
 interface BarreLateraleProps {

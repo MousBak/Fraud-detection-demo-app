@@ -261,7 +261,8 @@ export type TabType =
   | 'l2d'            // Système Learning to Defer
   | 'pipeline'       // Pipeline de données
   | 'alerts'         // Alertes et notifications
-  | 'fairness';      // Équité et biais
+  | 'fairness'       // Équité et biais
+  | 'validation';    // Validation temporelle / Fenêtre glissante
 
 /** Plages temporelles disponibles pour les analyses */
 export type TimeRange = '1h' | '6h' | '24h' | '7d' | '30d' | 'custom';
@@ -308,6 +309,8 @@ export interface FairnessMetrics {
   disparityScore: number;           // Score de disparité global
   equalizedOddsGap: number;         // Écart des odds équalisés
   demographicParityGap: number;     // Écart de parité démographique
+  bootstrap_ci?: { ratio_mean: number; ci_lower: number; ci_upper: number };
+  mitigation_strategy?: string;
 }
 
 /** Métriques pour un groupe démographique spécifique */

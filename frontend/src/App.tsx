@@ -19,6 +19,7 @@ import PanneauL2D from './components/PanneauL2D';
 import PanneauPipeline from './components/PanneauPipeline';
 import PanneauAlertes from './components/PanneauAlertes';
 import PanneauEquite from './components/PanneauEquite';
+import PanneauValidation from './components/PanneauValidation';
 
 export default function App() {
   // Utiliser le hook principal pour toute la gestion d'état
@@ -60,6 +61,8 @@ export default function App() {
           <PanneauModeles
             modeles={dashboard.modeles}
             metriquesModele={dashboard.metriquesModele}
+            calibrationData={dashboard.calibrationData}
+            precisionRecallAtK={dashboard.precisionRecallAtK}
           />
         );
       case 'experts':
@@ -74,6 +77,8 @@ export default function App() {
             decisions={dashboard.decisionsL2D}
             distributionL2D={dashboard.distributionL2D}
             metriquesPipeline={dashboard.metriquesPipeline}
+            baseModelComparison={dashboard.baseModelComparison}
+            capacitySweep={dashboard.capacitySweep}
           />
         );
       case 'pipeline':
@@ -95,6 +100,12 @@ export default function App() {
         return (
           <PanneauEquite
             equite={dashboard.equite}
+          />
+        );
+      case 'validation':
+        return (
+          <PanneauValidation
+            rollingValidation={dashboard.rollingValidation}
           />
         );
       default:

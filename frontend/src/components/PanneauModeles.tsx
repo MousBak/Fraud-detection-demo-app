@@ -2,7 +2,7 @@
 // Composant : PanneauModeles — Performance des Modèles ML
 // ─────────────────────────────────────────────────────────────
 
-import { Brain, TrendingUp, AlertTriangle, CheckCircle, Gauge } from 'lucide-react';
+import { Brain, TrendingUp, AlertTriangle, CheckCircle, Gauge, ShieldAlert } from 'lucide-react';
 import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -12,7 +12,10 @@ import type { MLModel, ModelMetrics } from '../types';
 interface PanneauModelesProps {
     modeles: MLModel[];
     metriquesModele: ModelMetrics[];
+    calibrationData?: any;
+    precisionRecallAtK?: any;
 }
+
 
 const COULEURS: Record<string, string> = {
     xgboost: '#06b6d4', lightgbm: '#10b981', random_forest: '#f59e0b',
@@ -127,6 +130,102 @@ export default function PanneauModeles({ modeles, metriquesModele }: PanneauMode
                         </LineChart>
                     </ResponsiveContainer>
                     <p className="chart-note">⚠️ Seuil de dérive : 0.30 — au-delà, ré-entraînement recommandé</p>
+                </div>
+            </div>
+
+            {/* Étalonnage et Précision à k */}
+            <div className="charts-grid-2" style={{ marginTop: '24px' }}>
+                {/* Section Calibration (Étalonnage) */}
+                <div className="chart-card">
+                    <h3 className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ShieldAlert size={18} color="#06b6d4" /> Recalibration & Fiabilité (XGBoost)
+                    </h3>
+                    {calibrationData ? (
+                        <>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                                <div style={{ background: '#090d16', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>Brier Score</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f87171', textDecoration: 'line-through' }}>
+                                        {calibrationData.uncalibrated.brier.toFixed(4)}
+                                    </div>
+                                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                                        {calibrationData.calibrated.brier.toFixed(4)} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>(-10%)</span>
+                                    </div>
+                                </div>
+                                <div style={{ background: '#090d16', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>Cas incertains [0.3, 0.7]</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f87171', textDecoration: 'line-through' }}>
+                                        {calibrationData.uncalibrated.uncertainty_count}
+                                    </div>
+                                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                                        {calibrationData.calibrated.uncertainty_count} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>(-79%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ height: '200px', width: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={calibrationData.calibrated.pred_probabilities.map((pred: number, i: number) => ({
+                                        pred: +(pred * 100).toFixed(1),
+                                        calibrated: +(calibrationData.calibrated.true_probabilities[i] * 100).toFixed(1),
+                                        uncalibrated: +(calibrationData.uncalibrated.true_probabilities[i] * 100).toFixed(1),
+                                        ideal: +(pred * 100).toFixed(1)
+                                    }))}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                        <XAxis dataKey="pred" name="Probabilité Prédite (%)" stroke="#64748b" fontSize={10} />
+                                        <YAxis stroke="#64748b" fontSize={10} />
+                                        <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#e2e8f0' }} />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="uncalibrated" name="Brut (XGBoost)" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
+                                        <Line type="monotone" dataKey="calibrated" name="Calibré (Isotonique)" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                                        <Line type="monotone" dataKey="ideal" name="Idéal" stroke="#64748b" strokeDasharray="3 3" dot={false} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </>
+                    ) : (
+                        <p style={{ color: '#64748b', fontSize: '13px' }}>Chargement de la calibration...</p>
+                    )}
+                </div>
+
+                {/* Section Precision@k */}
+                <div className="chart-card">
+                    <h3 className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <TrendingUp size={18} color="#06b6d4" /> Précision et Rappel à k% (XGBoost)
+                    </h3>
+                    <div className="table-wrapper" style={{ minHeight: '220px' }}>
+                        {precisionRecallAtK && precisionRecallAtK.precision_recall_at_k ? (
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Seuil k%</th>
+                                        <th>Effectif (k)</th>
+                                        <th>Précision@k</th>
+                                        <th>Rappel@k</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {precisionRecallAtK.precision_recall_at_k.map((item: any) => (
+                                        <tr key={item.k_pct} className="table-row">
+                                            <td style={{ fontWeight: 600, color: '#e2e8f0' }}>Top {item.k_pct}%</td>
+                                            <td>{item.count.toLocaleString('fr-FR')} cas</td>
+                                            <td className="text-success" style={{ fontWeight: 'bold' }}>
+                                                {(item.precision * 100).toFixed(1)}%
+                                            </td>
+                                            <td style={{ color: '#06b6d4', fontWeight: 'bold' }}>
+                                                {(item.recall * 100).toFixed(1)}%
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <p style={{ color: '#64748b', fontSize: '13px' }}>Chargement de Precision@k...</p>
+                        )}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '12px', lineHeight: '1.4' }}>
+                        * Le volume d'alertes à réviser est fixé par les capacités opérationnelles (k = 5%, 10%, 20%). 
+                        Au top 20% (1 971 cas), on capte 35% de la fraude totale avec 25% de précision.
+                    </p>
                 </div>
             </div>
         </div>

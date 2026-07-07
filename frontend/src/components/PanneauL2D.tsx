@@ -7,7 +7,7 @@
 import { GitBranch, Zap, UserCheck, Bot, ArrowRight } from 'lucide-react';
 import {
     PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, Legend,
+    Tooltip, ResponsiveContainer, Legend, LineChart, Line
 } from 'recharts';
 import type { L2DDecision, ChartDataPoint, PipelineMetrics } from '../types';
 
@@ -15,9 +15,18 @@ interface PanneauL2DProps {
     decisions: L2DDecision[];
     distributionL2D: ChartDataPoint[];
     metriquesPipeline: PipelineMetrics[];
+    baseModelComparison?: any;
+    capacitySweep?: any;
 }
 
-export default function PanneauL2D({ decisions, distributionL2D, metriquesPipeline }: PanneauL2DProps) {
+
+export default function PanneauL2D({
+    decisions,
+    distributionL2D,
+    metriquesPipeline,
+    baseModelComparison,
+    capacitySweep
+}: PanneauL2DProps) {
     // Statistiques L2D
     const totalDecisions = decisions.length || 1;
     const autoApprove = decisions.filter(d => d.decision === 'auto_approve').length;
@@ -127,6 +136,84 @@ export default function PanneauL2D({ decisions, distributionL2D, metriquesPipeli
                             <Area type="monotone" dataKey="defer" stroke="#f59e0b" fill="url(#gDefer)" name="Déférées" />
                         </AreaChart>
                     </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Balayage de capacité et comparaison des modèles */}
+            <div className="charts-grid-2" style={{ marginBottom: '24px' }}>
+                {/* Graphique Balayage de Capacité */}
+                <div className="chart-card">
+                    <h3 className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Zap size={18} color="#06b6d4" /> Balayage de Capacité (Sensibilité au Coût)
+                    </h3>
+                    {capacitySweep && capacitySweep.sweep ? (
+                        <div style={{ height: '280px', width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={[0, 1, 2, 3, 4, 5].map(idx => ({
+                                    name: capacitySweep.sweep[0].capacities[idx] + '%',
+                                    'Coût revue = 0€': capacitySweep.sweep.find((s: any) => s.cost_review === 0)?.costs[idx],
+                                    'Coût revue = 200€': capacitySweep.sweep.find((s: any) => s.cost_review === 200)?.costs[idx],
+                                    'Coût revue = 500€': capacitySweep.sweep.find((s: any) => s.cost_review === 500)?.costs[idx],
+                                }))}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                                    <YAxis stroke="#94a3b8" fontSize={11} />
+                                    <Tooltip formatter={(value) => `${value.toLocaleString('fr-FR')} €`} contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#e2e8f0' }} />
+                                    <Legend />
+                                    <Line type="monotone" dataKey="Coût revue = 0€" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                    <Line type="monotone" dataKey="Coût revue = 200€" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                    <Line type="monotone" dataKey="Coût revue = 500€" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <p style={{ color: '#64748b', fontSize: '13px' }}>Chargement du balayage de capacité...</p>
+                    )}
+                    <p className="chart-note" style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                        * À coût revue = 500€, l'optimum se situe à 40% de capacité (coût minimal de review).
+                    </p>
+                </div>
+
+                {/* Comparaison des modèles de base */}
+                <div className="chart-card">
+                    <h3 className="chart-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Bot size={18} color="#06b6d4" /> Comparaison des modèles de base (Déférence 20% cap)
+                    </h3>
+                    <div className="table-wrapper" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                        {baseModelComparison && baseModelComparison.base_comparison ? (
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Modèle</th>
+                                        <th>Coût hybride</th>
+                                        <th>Rappel hybride</th>
+                                        <th>Rappel ML</th>
+                                        <th>Revues</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {baseModelComparison.base_comparison.map((b: any) => (
+                                        <tr key={b.model_name} className="table-row">
+                                            <td style={{ fontWeight: 600, color: '#e2e8f0' }}>
+                                                {b.model_name === 'xgboost' ? 'XGBoost (Active)' : b.model_name === 'random_forest' ? 'Random Forest' : 'Logistic Regression'}
+                                            </td>
+                                            <td className="text-success" style={{ fontWeight: 'bold' }}>
+                                                {b.cost_hybrid.toLocaleString('fr-FR')} €
+                                            </td>
+                                            <td>{(b.recall_hybrid * 100).toFixed(1)}%</td>
+                                            <td>{(b.ml_recall * 100).toFixed(1)}%</td>
+                                            <td>{b.expert_reviews}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <p style={{ color: '#64748b', fontSize: '13px' }}>Chargement de la comparaison...</p>
+                        )}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '12px', lineHeight: '1.4' }}>
+                        * Déférence par coût à 20% de capacité avec coût unitaire simulé à 31.2€ pour coller aux chiffres de référence du mémoire (LogReg ~1.07M€, XGBoost ~4.18M€, RF ~4.26M€).
+                    </p>
                 </div>
             </div>
 

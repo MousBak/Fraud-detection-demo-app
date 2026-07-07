@@ -53,6 +53,12 @@ interface UseDashboardReturn {
     decisionsL2D: L2DDecision[];
     distributionL2D: ChartDataPoint[];
     comparaisonPerf: ChartDataPoint[];
+    calibrationData: any;
+    precisionRecallAtK: any;
+    rollingValidation: any;
+    baseModelComparison: any;
+    capacitySweep: any;
+
 
     ongletActif: TabType;
     plageTemporelle: TimeRange;
@@ -106,6 +112,12 @@ export function useDashboard(): UseDashboardReturn {
     // Graphiques
     const [distributionL2D, setDistributionL2D] = useState<ChartDataPoint[]>(DISTRIBUTION_L2D_INITIAL);
     const [comparaisonPerf, setComparaisonPerf] = useState<ChartDataPoint[]>([]);
+    const [calibrationData, setCalibrationData] = useState<any>(null);
+    const [precisionRecallAtK, setPrecisionRecallAtK] = useState<any>(null);
+    const [rollingValidation, setRollingValidation] = useState<any>(null);
+    const [baseModelComparison, setBaseModelComparison] = useState<any>(null);
+    const [capacitySweep, setCapacitySweep] = useState<any>(null);
+
 
     // --- États de l'interface ---
     const [ongletActif, setOngletActif] = useState<TabType>('overview');
@@ -207,8 +219,10 @@ export function useDashboard(): UseDashboardReturn {
                             falsePositiveRate: g.fpr,
                             falseNegativeRate: g.fnr,
                             approvalRate: 1 - g.positive_rate,
-                            deferralRate: 0.20,
+                            deferralRate: g.deferral_rate !== undefined ? g.deferral_rate : 0.20,
                         })),
+                        bootstrap_ci: ageData.bootstrap_ci,
+                        mitigation_strategy: ageData.mitigation_strategy,
                     });
                 }
             }
@@ -226,12 +240,34 @@ export function useDashboard(): UseDashboardReturn {
                             falsePositiveRate: g.fpr,
                             falseNegativeRate: g.fnr,
                             approvalRate: 1 - g.positive_rate,
-                            deferralRate: 0.20,
+                            deferralRate: g.deferral_rate !== undefined ? g.deferral_rate : 0.20,
                         })),
+                        bootstrap_ci: jobData.bootstrap_ci,
+                        mitigation_strategy: jobData.mitigation_strategy,
                     });
                 }
             }
             setEquite(listEquite);
+
+            // 4b. Charger les nouvelles métriques (Calibration, Precision@k, Rolling, Base comparison, Capacity sweep)
+            const [resCalib, resK, resRoll, resBase, resSweep] = await Promise.all([
+                fetch(`${API_BASE_URL}/models/calibration`),
+                fetch(`${API_BASE_URL}/models/precision-at-k/xgboost`),
+                fetch(`${API_BASE_URL}/models/rolling-validation`),
+                fetch(`${API_BASE_URL}/l2d/base-comparison`),
+                fetch(`${API_BASE_URL}/l2d/capacity-sweep`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ strategy: 'cost_sensitive' })
+                })
+            ]);
+
+            if (resCalib.ok) setCalibrationData(await resCalib.json());
+            if (resK.ok) setPrecisionRecallAtK(await resK.json());
+            if (resRoll.ok) setRollingValidation(await resRoll.json());
+            if (resBase.ok) setBaseModelComparison(await resBase.json());
+            if (resSweep.ok) setCapacitySweep(await resSweep.json());
+
 
             // 5. Charger la simulation L2D par défaut (strategy=confidence)
             const resL2D = await fetch(`${API_BASE_URL}/l2d/simulate`, {
@@ -381,6 +417,11 @@ export function useDashboard(): UseDashboardReturn {
         decisionsL2D,
         distributionL2D,
         comparaisonPerf,
+        calibrationData,
+        precisionRecallAtK,
+        rollingValidation,
+        baseModelComparison,
+        capacitySweep,
 
         ongletActif,
         plageTemporelle,

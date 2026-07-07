@@ -30,6 +30,16 @@ class Preprocessor:
         self.categorical_cols: list[str] = []
         self.feature_columns: list[str] = []
         self.is_fitted = False
+        self.imputer = None
+        self.fitted_impute_cols = []
+        self.impute_cols = [
+            "prev_address_months_count",
+            "current_address_months_count",
+            "credit_risk_score",
+            "bank_months_count",
+            "session_length_in_minutes",
+            "device_distinct_emails_8w"
+        ]
 
     def fit_transform(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         """
@@ -62,7 +72,16 @@ class Preprocessor:
             df[col] = le.fit_transform(df[col].astype(str))
             self.label_encoders[col] = le
 
-        # Gérer les valeurs manquantes
+        # Gérer les valeurs manquantes et imputer les sentinelles -1 par la médiane
+        from sklearn.impute import SimpleImputer
+        self.fitted_impute_cols = [c for c in self.impute_cols if c in df.columns]
+        if self.fitted_impute_cols:
+            for col in self.fitted_impute_cols:
+                df[col] = df[col].replace(-1, np.nan)
+                df[col] = df[col].replace(-1.0, np.nan)
+            self.imputer = SimpleImputer(strategy="median")
+            df[self.fitted_impute_cols] = self.imputer.fit_transform(df[self.fitted_impute_cols])
+
         df = df.fillna(0)
 
         # Ne garder que les colonnes numériques
@@ -93,6 +112,18 @@ class Preprocessor:
                 df[col] = df[col].astype(str).map(
                     lambda x, _le=le: _le.transform([x])[0] if x in _le.classes_ else -1
                 )
+
+        # Gérer les valeurs manquantes et imputer les sentinelles -1 par la médiane
+        if self.imputer is not None and self.fitted_impute_cols:
+            cols_to_impute = []
+            for col in self.fitted_impute_cols:
+                if col not in df.columns:
+                    df[col] = np.nan
+                else:
+                    df[col] = df[col].replace(-1, np.nan)
+                    df[col] = df[col].replace(-1.0, np.nan)
+                cols_to_impute.append(col)
+            df[cols_to_impute] = self.imputer.transform(df[cols_to_impute])
 
         df = df.fillna(0)
 
